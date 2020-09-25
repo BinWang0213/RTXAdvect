@@ -1,4 +1,4 @@
-# rtxTetAdvect - Collaboration Project for RTX-accelerated Tet-Mesh Particle Advection
+# rtxAdvect - RTX-accelerated Tet-Mesh Particle Advection
 ==================================================================
 
 # Building
