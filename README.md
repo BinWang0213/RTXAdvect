@@ -1,14 +1,14 @@
 # rtxAdvect - RTX-accelerated Tet-Mesh Particle Advection
+
+
+## Building
 ==================================================================
 
-# Building
-==================================================================
-
-## Dependencies
+### Dependencies
 
 Optix 7, CUDA 10, and a recent NVIDIA driver.
 
-## Checkout w/ Submodule
+### Checkout w/ Submodule
 
 Mind this project uses a git submodule, so idealy clone with
 `--recursive` flag:
@@ -22,7 +22,7 @@ If you did close without this flag, you can afterwards also do a
 	
 Building then via cmake and your favorite compiler toolchain.
 
-## Building on Linux
+### Building on Linux
 
 For linux, I assume that `nvcc` is in the default path, and that there is environment variable names 'OptiX_INSTALL_DIR` that points to the optix SDK install directory
 
@@ -34,7 +34,7 @@ For linux, I assume that `nvcc` is in the default path, and that there is enviro
 
 If you have any missing dependencies ccmake will tell you... just fix and re-run cmake
 
-## Building on Windows
+### Building on Windows
 
 For windows, install Visual Studio (2017+), CUDA (10.1+) and Optix 7 first. Then run `cmake-gui` and click configure with following
 paramters:
@@ -44,12 +44,17 @@ paramters:
 `OptiX_INCLUDE` =
 `C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.0.0/include`
 
-# License
+## Usage
+==================================================================
+
+    cudaParticleAdvection.exe --num-particles 5000 --num-steps 50000 --input_mesh verts.dat cells.dat --input_tet_velocity_field solutions_cell.dat -dt 2e-3 --seeding-box  -1.5 -12.0 -1.5 50.5 -8.5 50.5 --save-streamline-to-vtk Streamline.vtk
+
+## License
 ==================================================================
 
 Apache Licence 2.0 - pretty much do with it what you like; no warranties.
 
-# Collaborators
+## Collaborators
 ==================================================================
 
 UofU & NVidia
