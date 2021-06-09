@@ -38,9 +38,10 @@ namespace advect {
 	//int numSteps = 13251;
 	int numSteps = 1e5;
 	//double dt = 1.5e-3; //Microfludics Level 1
-	double dt = 3.5e-3; //Microfludics Level 2
-	//double dt = 5.0e-3; //Microfludics Level 3
+	//double dt = 3.5e-3; //Microfludics Level 2
+	double dt = 5.0e-3; //Microfludics Level 3
 	//double dt = 6.0e-3; //Microfludics Level 4
+	//double dt = 2e-4; //porous media, Sphere Packing
 
 	//double dt = 1e-2;
 	//double dt = 1e-3;
@@ -125,12 +126,12 @@ namespace advect {
 	if (velocity_vert_filename.size() > 0) {
 		hostTetMesh = HostTetMesh::readDataSet(vert_filename, tet_filename, velocity_vert_filename);
 		VelocityInterpMethod = "VertexVelocity";
-		printf("#adv: load vertex velocity field from file %s", velocity_vert_filename.c_str());
+		printf("#adv: load vertex velocity field from file %s\n", velocity_vert_filename.c_str());
 	}
 	else if (velocity_tet_filename.size() > 0) {
 		hostTetMesh = HostTetMesh::readDataSet(vert_filename, tet_filename, "", velocity_tet_filename);
 		VelocityInterpMethod = "TetVelocity";
-		printf("#adv: load tet velocity field from file %s", velocity_vert_filename.c_str());
+		printf("#adv: load tet velocity field from file %s\n", velocity_vert_filename.c_str());
 	}
 	else {
 		hostTetMesh = HostTetMesh::createBoxMesh(testTetMeshGridSize, testTetMeshGridSize, testTetMeshGridSize);
@@ -150,17 +151,26 @@ namespace advect {
     // build the query accelerator first, before the cuda kernels
     // allocate their memory.
     // ------------------------------------------------------------------
+	double BVHTime = 0.0;
+
+	CPUTimer timer_BVH;
+	timer_BVH.start();
     OptixQuery tetQueryAccelerator((double3 *) hostTetMesh.positions.data(),
                                       hostTetMesh.positions.size(),
                                       (int4 *) hostTetMesh.indices.data(),
                                       hostTetMesh.indices.size());
+	BVHTime = timer_BVH.stop();
+	printf("#adv BVH Construction Time=%lf  ms\n", BVHTime);
+
 
     // by now optix should have built all its data,and released
     // whatever temp memory it has used.
+	/*
 	OptixQuery triQueryAccelerator((double3*)hostBoundaryMesh.positions.data(),
 									hostBoundaryMesh.positions.size(),
 									(int4*)hostBoundaryMesh.indices.data(),
 									hostBoundaryMesh.indices.size(), true);
+	*/
 
     // ------------------------------------------------------------------
     // upload our own cuda data
@@ -182,7 +192,9 @@ namespace advect {
 		VelocityInterpMethod);
 
     // alloc particles and its properties
-	
+	std::cout << "NumParticles=" << numParticles << std::endl;
+	std::cout << "Timestep=" << dt << std::endl;
+
 	// Cast simple double4 particles into OptixTetquery type
 	Particle* d_particles = nullptr;//x,y,z,statusID
 	if (seeding_pts_filename.size() > 0) 
@@ -228,8 +240,8 @@ namespace advect {
 	usingSeedingBox = true;
 	//double seedBox[6] = { -0.05+tol,0.0+tol,2.5+tol, 0.05-tol,0.1-tol,2.55-tol };
 	//double seedBox[6] = { -0.05 + tol,0.0 + tol,2.2165 + tol, 0.05 - tol,0.1 - tol,2.7835 - tol }; //Square Duct
-	//double seedBox[6] = { 73.9 + tol,-0.4 + tol,-655.95 + tol, 77.7 - tol,0.0 - tol,-655.45 - tol }; //Microfludics
-	double seedBox[6] = { 6.5 + tol,6.5 + tol,-20 + tol, 91.5 - tol, 91.5 - tol,-16 - tol };//Sphere packing
+	double seedBox[6] = { 73.9 + tol,-0.4 + tol,-655.95 + tol, 77.7 - tol,0.0 - tol,-655.45 - tol }; //Microfludics
+	//double seedBox[6] = { 6.5 + tol,6.5 + tol,-20 + tol, 91.5 - tol, 91.5 - tol,-16 - tol };//Sphere packing
 	//double seedBox[6] = { 167.25 + tol,178.9 + tol,-63.4 + tol, 176.75 - tol, 188.7 - tol,-58.6 - tol };//Human lung
 	std::copy(seedBox, seedBox+6, SeedingBox);
 
@@ -329,7 +341,7 @@ namespace advect {
 		// ... compute advection
 		timer_loop.start();
 		if (usingAdvection) {
-
+			
 			cudaAdvect(d_particles,
 #ifndef  ConvexPoly
 				d_particles_tetIDs,
@@ -455,18 +467,20 @@ namespace advect {
 
 	double runtime = timer.stop();
     printf("#adv: Simulation RunTime=%f ms\n", runtime);
-	printf("#adv: Simulation Performance=%f steps/secs\n", numSteps/runtime*1000);
+	printf("#adv: Simulation Performance=%f steps/secs\n", numSteps/(runtime - IOTime )*1000);
 	
-	double totalTime = advectionTime + diffusionTime + queryTime + reflectTime + moveTime + IOTime;
+	double totalTime = BVHTime + advectionTime + diffusionTime + queryTime + reflectTime + moveTime;
+	printf("IO is not included to compute time fraction\n");
 	printf("\tItem\ttime(s)\tfraction(%%)\n");
+	printf("\tBVH init\t%.2f\t\%.2f\n", BVHTime / 1000, BVHTime / totalTime * 100);
 	printf("\tAdv\t%.2f\t\%.2f\n", advectionTime/1000, advectionTime / totalTime * 100);
 	printf("\tDfs\t%.2f\t\%.2f\n", diffusionTime / 1000, diffusionTime / totalTime * 100);
 	printf("\tQry\t%.2f\t\%.2f\n", queryTime / 1000, queryTime / totalTime * 100);
 	printf("\tRft\t%.2f\t\%.2f\n", reflectTime / 1000, reflectTime / totalTime * 100);
 	printf("\tMov\t%.2f\t\%.2f\n", moveTime / 1000, moveTime / totalTime * 100);
-	printf("\tIO\t%.2f\t\%.2f\n", IOTime / 1000, IOTime / totalTime * 100);
+	printf("\tIO\t%.2f\n", IOTime / 1000);
 	printf("\tTotal Time = %.2f ms\n", totalTime);
-	printf("\tPerformance = %f steps/secs\n", numSteps / totalTime * 1000);
+	printf("\tPerformance = %f steps/secs\n", numSteps / (totalTime-BVHTime) * 1000);
 
 	if (saveStreamlinetoFile) {
 		if (objTrajectoryFileName.size() > 0)
